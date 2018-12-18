@@ -27,6 +27,7 @@
 #include "common/errno.h"
 #include "common/Formatter.h"
 #include "common/obj_bencher.h"
+#include "common/rabin.h"
 
 #include <iostream>
 #include <fstream>
@@ -141,6 +142,7 @@ public:
   void print_status(Formatter *f, ostream &out);
   map< string, pair <uint64_t, uint64_t> > &get_chunk_statistics() { return local_chunk_statistics; }
   uint64_t fixed_chunk(string oid, uint64_t offset);
+  uint64_t rabin_chunk(string oid);
 };
 
 class ChunkScrub: public EstimateThread
@@ -311,7 +313,10 @@ void EstimateDedupRatio::estimate_dedup_ratio()
 	uint64_t next_offset;
 	if (chunk_algo == "fixed") {
 	  next_offset = fixed_chunk(oid, offset);
-	} else {
+	} else if (chunk_algo == "rabin") {
+          next_offset = rabin_chunk(oid); // return 0 on success
+
+        } else {
 	  // CDC ..
 	  ceph_assert(0 == "no support chunk algorithm"); 
 	}
@@ -331,6 +336,46 @@ void EstimateDedupRatio::estimate_dedup_ratio()
       examined_objects++;
     }
   }
+}
+
+uint64_t EstimateDedupRatio::rabin_chunk(string oid)
+{
+  unsigned op_size = default_op_size;
+  int ret;
+  uint64_t offset = 0;
+  bufferlist outdata;
+  ret = io_ctx.read(oid, outdata, op_size, offset);
+  if (ret <= 0) {
+    return 0;
+  }
+
+  if (fp_algo == "sha1") {
+    std::vector<bufferlist> rabin_chunks;
+    size_t min,max;
+    min = 2000;
+    max = 8000;
+    get_rabin_chunks(min,max,outdata,&rabin_chunks);
+    for (auto & chunk : rabin_chunks ) {
+      sha1_digest_t sha1_val = chunk.sha1();
+      string fp = sha1_val.to_str();
+      auto p = local_chunk_statistics.find(fp);
+      if (p != local_chunk_statistics.end()) {
+	uint64_t count = p->second.first;
+	count++;
+	local_chunk_statistics[fp] = make_pair(count, chunk.length());
+      } else {
+	local_chunk_statistics[fp] = make_pair(1, chunk.length());
+      }
+      total_bytes += chunk.length();
+    }
+  } else {
+    ceph_assert(0 == "no support fingerperint algorithm"); 
+  }
+
+  if (outdata.length() < op_size) {
+    return 0;
+  }
+  return 0;
 }
 
 uint64_t EstimateDedupRatio::fixed_chunk(string oid, uint64_t offset)
