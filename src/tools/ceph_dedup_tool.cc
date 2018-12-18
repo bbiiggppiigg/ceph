@@ -58,7 +58,7 @@ void usage()
   cout << " usage: [--op <estimate|chunk_scrub|add_chunk_ref|get_chunk_ref>] [--pool <pool_name> ] " << std::endl;
   cout << "   --object <object_name> " << std::endl;
   cout << "   --chunk-size <size> chunk-size (byte) " << std::endl;
-  cout << "   --chunk-algorithm <fixed> " << std::endl;
+  cout << "   --chunk-algorithm [ <fixed> | <rabin> ]" << std::endl;
   cout << "   --fingerprint-algorithm <sha1> " << std::endl;
   cout << "   --chunk-pool <pool name> " << std::endl;
   cout << "   --max-thread <threads> " << std::endl;
@@ -360,11 +360,11 @@ uint64_t EstimateDedupRatio::rabin_chunk(string oid)
       string fp = sha1_val.to_str();
       auto p = local_chunk_statistics.find(fp);
       if (p != local_chunk_statistics.end()) {
-	uint64_t count = p->second.first;
-	count++;
-	local_chunk_statistics[fp] = make_pair(count, chunk.length());
+        uint64_t count = p->second.first;
+        count++;
+        local_chunk_statistics[fp] = make_pair(count, chunk.length());
       } else {
-	local_chunk_statistics[fp] = make_pair(1, chunk.length());
+        local_chunk_statistics[fp] = make_pair(1, chunk.length());
       }
       total_bytes += chunk.length();
     }
@@ -532,7 +532,7 @@ int estimate_dedup_ratio(const std::map < std::string, std::string > &opts,
   i = opts.find("chunk-algorithm");
   if (i != opts.end()) {
     chunk_algo = i->second.c_str();
-    if (chunk_algo != "fixed") {
+    if (chunk_algo != "fixed" && chunk_algo != "rabin" ) {
       usage_exit();
     }
   } else {
@@ -548,16 +548,17 @@ int estimate_dedup_ratio(const std::map < std::string, std::string > &opts,
   } else {
     usage_exit();
   }
-
-  i = opts.find("chunk-size");
-  if (i != opts.end()) {
-    if (rados_sistrtoll(i, &chunk_size)) {
-      return -EINVAL;
+  
+  if(chunk_algo == "fixed") {
+    i = opts.find("chunk-size");
+    if (i != opts.end()) {
+      if (rados_sistrtoll(i, &chunk_size)) {
+        return -EINVAL;
+      }
+    } else {
+      usage_exit();
     }
-  } else {
-    usage_exit();
   }
-
   i = opts.find("max-thread");
   if (i != opts.end()) {
     if (rados_sistrtoll(i, &max_thread)) {
