@@ -46,10 +46,10 @@ void get_rabin_chunks(
   // or can't calculate rabin hash
   if (data_size < min || data_size < WINDOW_SIZE){
     bufferlist chunk;
-    bufferptr bptr(data_size);
+    bufferptr bptr(min);
     chunk.push_back(std::move(bptr));
     chunk.copy_in(0, data_size, ptr);
-
+	chunk.copy_in(data_size,min-data_size , const_zero);
     out->push_back(chunk);
     return;
   }
