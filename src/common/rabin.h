@@ -17,7 +17,7 @@
 
 #define WINDOW_SIZE 48
 #define RABIN_PRIME 3
-#define RABIN_MASK ((1<<14) -1)
+#define RABIN_MASK ((1<<5) -1)
 #define MOD_PRIME 6148914691236517051
 #define POW_47 907234050803559263
 
@@ -33,6 +33,8 @@ uint64_t gen_rabin_hash(char* chunk_data, uint64_t off);
  */
 bool end_of_chunk(const uint64_t fp);
 
+bool end_of_chunk(const uint64_t fp, int numbits);
+
 /*
  * Given a bufferlist of inputdata, use Rabin-fingerprint to
  * chunk it and return the chunked result
@@ -43,5 +45,12 @@ void get_rabin_chunks(
                   size_t max,
                   bufferlist& inputdata,
                   vector<bufferlist> * output_chunks);
+
+void get_rabin_chunks(
+                  size_t min,
+                  size_t max,
+                  bufferlist& inputdata,
+                  vector<bufferlist> * output_chunks, int numbits);
+
 
 #endif // CEPH_COMMON_RABIN_H_

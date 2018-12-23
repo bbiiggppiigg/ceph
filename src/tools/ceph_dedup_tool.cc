@@ -338,6 +338,24 @@ void EstimateDedupRatio::estimate_dedup_ratio()
   }
 }
 
+void print_chunk_stat(size_t min_chunk,
+                      size_t max_chunk,
+                      int hist_size,
+                      const vector<bufferlist>& chunks) {
+  int hist[hist_size] = {0};
+  size_t range = (max_chunk - min_chunk) / hist_size;
+  for (size_t i = 0; i < chunks.size(); ++i) {
+    uint64_t chunk_size = chunks[i].length();
+    int bucket = (chunk_size - min_chunk) / range;
+    hist[bucket] += 1;
+  }
+  printf("min chunk %zu, max chunk %zu", min_chunk, max_chunk);
+  printf("hist size %d, range %zu\n", hist_size, range);
+  for (int i = 0; i < hist_size; ++i) {
+    printf("  hist %d contains %d chunks\n", i, hist[i]);
+  }
+}
+
 uint64_t EstimateDedupRatio::rabin_chunk(string oid)
 {
   unsigned op_size = default_op_size;
@@ -354,7 +372,8 @@ uint64_t EstimateDedupRatio::rabin_chunk(string oid)
     size_t min,max;
     min = 2000;
     max = 8000;
-    get_rabin_chunks(min,max,outdata,&rabin_chunks);
+    get_rabin_chunks(min, max, outdata, &rabin_chunks, 0);
+    print_chunk_stat(min, max, 10, rabin_chunks);
     for (auto & chunk : rabin_chunks ) {
       sha1_digest_t sha1_val = chunk.sha1();
       string fp = sha1_val.to_str();
@@ -403,8 +422,11 @@ uint64_t EstimateDedupRatio::fixed_chunk(string oid, uint64_t offset)
       }
       sha1_digest_t sha1_val = chunk.sha1();
       string fp = sha1_val.to_str();
+      printf("chunk is: %s\n", chunk.c_str());
+      printf("sha1: %s\n", fp.c_str());
       auto p = local_chunk_statistics.find(fp);
       if (p != local_chunk_statistics.end()) {
+      printf("add chunk\n");
 	uint64_t count = p->second.first;
 	count++;
 	local_chunk_statistics[fp] = make_pair(count, chunk.length());
